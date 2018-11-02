@@ -3,6 +3,7 @@ import glob
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sn
 import librosa as lr
 import librosa.display
 from python_speech_features import mfcc
@@ -11,6 +12,7 @@ from python_speech_features import logfbank
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import confusion_matrix    
 from sklearn.linear_model import LogisticRegression
 from sklearn import svm
 from sklearn.neighbors import KNeighborsClassifier
@@ -49,6 +51,17 @@ def audio_plot(audio_file):
     ax[1].plot(f/1000, abs(fft_audio)) 
     ax[1].set_xlabel('Freq (KHz)')
     ax[1].set_ylabel('|Y(freq)|')
+
+def plot_confusion_matrix(conf_matrix, title):
+    df_cm = pd.DataFrame(conf_matrix, range(9), range(9))
+    #print(df_cm)
+    sn.set(font_scale=1.4)
+    sn.heatmap(df_cm, annot=True,annot_kws={"size": 16})
+    print("\nPlotted the confusion matrix!\n")
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.title('Model: '+title)
+    plt.show()
 
 def feature_engineering(audio, Fs):
     features = []
@@ -116,7 +129,7 @@ def prep_data():
 
 def train_model():
     data = pd.read_csv('X_new_2.csv')
-    train, test = train_test_split(data, test_size=0.4, random_state=2, shuffle=True)
+    train, test = train_test_split(data, test_size=0.3, random_state=2, shuffle=True)
     
     l = []
     for i in range(0, 210):
@@ -130,25 +143,28 @@ def train_model():
     #print(X_train.head())
     #print(y_train.head())
     
-    train_lr(X_train, y_train, X_test, y_test)
+    # train_lr(X_train, y_train, X_test, y_test)
     # train_svm(X_train, y_train, X_test, y_test)
     # train_knn(X_train, y_train, X_test, y_test)
     # train_nb(X_train, y_train, X_test, y_test)
     # train_rf(X_train, y_train, X_test, y_test)
     # train_xgb(X_train, y_train, X_test, y_test)
-    # train_adab(X_train, y_train, X_test, y_test)
+    train_adab(X_train, y_train, X_test, y_test)
 
 def train_lr(X_train, y_train, X_test, y_test):
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train)
     X_test = scaler.fit_transform(X_test)
 
-    model = LogisticRegression(C=0.1)
+    model = LogisticRegression(C=3)
     print("\nLogistic Regression: Training...")
     model.fit(X_train, y_train)
     print("\nLogistic Regression: Training score: %f"%(model.score(X_train, y_train)))
     print("\nLogistic Regression: Test score: %f"%(model.score(X_test, y_test)))
     print("\n----------------------------------------------\n")
+    y_pred = model.predict(X_test)
+    conf_mat = confusion_matrix(y_test, y_pred)
+    plot_confusion_matrix(conf_mat, 'lr')
 
 def train_svm(X_train, y_train, X_test, y_test):
     scaler = StandardScaler()
@@ -161,6 +177,9 @@ def train_svm(X_train, y_train, X_test, y_test):
     print("\nSupport Vector Machine: Training score: %f"%(model.score(X_train, y_train)))
     print("\nSupport Vector Machine: Test score: %f"%(model.score(X_test, y_test)))
     print("\n----------------------------------------------\n")
+    y_pred = model.predict(X_test)
+    conf_mat = confusion_matrix(y_test, y_pred)
+    plot_confusion_matrix(conf_mat, 'svm')
 
 def train_knn(X_train, y_train, X_test, y_test):
     scaler = StandardScaler()
@@ -173,6 +192,9 @@ def train_knn(X_train, y_train, X_test, y_test):
     print("\nK Nearest Neighbor: Training score: %f"%(model.score(X_train, y_train)))
     print("\nK Nearest Neighbor: Test score: %f"%(model.score(X_test, y_test)))
     print("\n----------------------------------------------\n")
+    y_pred = model.predict(X_test)
+    conf_mat = confusion_matrix(y_test, y_pred)
+    plot_confusion_matrix(conf_mat, 'knn')
 
 def train_nb(X_train, y_train, X_test, y_test):
 
@@ -182,6 +204,9 @@ def train_nb(X_train, y_train, X_test, y_test):
     print("\nGaussian Naive Bayes: Training score: %f"%(model.score(X_train, y_train)))
     print("\nGaussian Naive Bayes: Test score: %f"%(model.score(X_test, y_test)))
     print("\n----------------------------------------------\n")
+    y_pred = model.predict(X_test)
+    conf_mat = confusion_matrix(y_test, y_pred)
+    plot_confusion_matrix(conf_mat, 'nb')
 
 def train_rf(X_train, y_train, X_test, y_test):
 
@@ -191,6 +216,9 @@ def train_rf(X_train, y_train, X_test, y_test):
     print("\nRandom Forest: Training score: %f"%(model.score(X_train, y_train)))
     print("\nRandom Forest: Test score: %f"%(model.score(X_test, y_test)))
     print("\n----------------------------------------------\n")
+    y_pred = model.predict(X_test)
+    conf_mat = confusion_matrix(y_test, y_pred)
+    plot_confusion_matrix(conf_mat, 'rf')
 
 def train_xgb(X_train, y_train, X_test, y_test):
 
@@ -200,15 +228,21 @@ def train_xgb(X_train, y_train, X_test, y_test):
     print("\nXGBoost: Training score: %f"%(model.score(X_train, y_train)))
     print("\nXGBoost: Test score: %f"%(model.score(X_test, y_test)))
     print("\n----------------------------------------------\n")
+    y_pred = model.predict(X_test)
+    conf_mat = confusion_matrix(y_test, y_pred)
+    plot_confusion_matrix(conf_mat, 'xgb')
 
 def train_adab(X_train, y_train, X_test, y_test):
     
-    model = AdaBoostClassifier(random_state=1)
+    model = AdaBoostClassifier(n_estimators=700, learning_rate=0.01)
     print("\nAdaboost: Training...")
     model.fit(X_train, y_train)
     print("\nAdaboost: Training score: %f"%(model.score(X_train, y_train)))
     print("\nAdaboost: Test score: %f"%(model.score(X_test, y_test)))
     print("\n----------------------------------------------\n")
+    y_pred = model.predict(X_test)
+    conf_mat = confusion_matrix(y_test, y_pred)
+    plot_confusion_matrix(conf_mat, 'adab')
     
 if __name__ == "__main__":
     warnings.filterwarnings(action='ignore', category=DeprecationWarning)
