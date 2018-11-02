@@ -12,8 +12,12 @@ from python_speech_features import logfbank
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
-import xgboost as xgb
+from sklearn import svm
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import GaussianNB
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import AdaBoostClassifier
+import xgboost as xgb
 
 import warnings
 
@@ -52,30 +56,39 @@ def feature_engineering(audio, Fs):
     mfcc_coeff = mfcc(audio, Fs, winlen=0.023)
     fbank_coeff = logfbank(audio, Fs, winlen=0.023)
     delta_mfcc_coeff = delta(mfcc_coeff, 2)
+    chroma_coeff = lr.feature.chroma_stft(y=audio, sr=Fs, n_fft=512)
+    melspectro_coeff = lr.feature.melspectrogram(y=audio, sr=Fs, n_fft=512, n_mels=40)
+    rmse_coeff = lr.feature.rmse(y=audio, frame_length=512)
 
-    tot_frames = mfcc_coeff.shape[0]
-    mfcc_coeffs_len = mfcc_coeff.shape[1]
-    fbank_coeffs_len = fbank_coeff.shape[1]
+    mfcc_mean = np.mean(mfcc_coeff, axis=0)
+    mfcc_var = np.var(mfcc_coeff, axis=0)
+    fbank_mean = np.mean(fbank_coeff, axis=0)
+    fbank_var = np.var(fbank_coeff, axis=0)
+    delta_mean = np.mean(delta_mfcc_coeff, axis=0)
+    delta_var = np.var(delta_mfcc_coeff, axis=0)
+    chroma_mean = np.mean(chroma_coeff.T, axis=0)
+    chroma_var = np.var(chroma_coeff.T, axis=0)
+    melspectro_mean = np.mean(melspectro_coeff.T, axis=0)
+    melspectro_var = np.var(melspectro_coeff.T, axis=0)
+    rmse_mean = np.mean(rmse_coeff.T, axis=0)
+    rmse_var = np.var(rmse_coeff.T, axis=0)
 
-    for j in range(mfcc_coeffs_len):
-        mfcc_coeffs = []
-        delta_coeffs = []
-        for i in range(tot_frames):
-            mfcc_coeffs.append(mfcc_coeff[i][j])
-            delta_coeffs.append(delta_mfcc_coeff[i][j])
-        features.append(np.mean(mfcc_coeffs))
-        features.append(np.var(mfcc_coeffs))
-        features.append(np.mean(delta_coeffs))
-        features.append(np.var(delta_coeffs))
+    features.append(mfcc_mean)
+    features.append(mfcc_var )
+    features.append(fbank_mean)
+    features.append(fbank_var)
+    features.append(delta_mean)
+    features.append(delta_var)
+    features.append(chroma_mean)
+    features.append(chroma_var)
+    features.append(melspectro_mean)
+    features.append(melspectro_var)
+    features.append(rmse_mean)
+    features.append(rmse_var)
 
-    for j in range(fbank_coeffs_len):
-        fbank_coeffs = []
-        for i in range(tot_frames):
-            fbank_coeffs.append(fbank_coeff[i][j])    
-        features.append(np.mean(fbank_coeffs))
-        features.append(np.var(fbank_coeffs))
-
-    return features
+    flat_features = [feat for sublist in features for feat in sublist]
+    
+    return flat_features
 
 def get_audio_files(dialect_class):
     audio_files = glob.glob("../Read_Up/%s/*" %(dialect_class))
@@ -98,39 +111,77 @@ def prep_data():
             i = i+1
 
     X = pd.DataFrame.from_dict(data, orient='index')
-    X.to_csv('X_new.csv')
+    X.to_csv('X_new_2.csv')
     print("\nDone making the CSV!\n")
 
 def train_model():
-    data = pd.read_csv('X_new.csv')
-    train, test = train_test_split(data, test_size=0.33, random_state=1, shuffle=True)
+    data = pd.read_csv('X_new_2.csv')
+    train, test = train_test_split(data, test_size=0.4, random_state=2, shuffle=True)
     
     l = []
-    for i in range(0, 104):
+    for i in range(0, 210):
         l.append(str(i))
 
     X_train = train.loc[:, l]
-    y_train = train.loc[:, '104']   
+    y_train = train.loc[:, '210']   
     X_test = test.loc[:, l]
-    y_test = test.loc[:, '104']
+    y_test = test.loc[:, '210']
 
     #print(X_train.head())
     #print(y_train.head())
     
-    train_rf(X_train, y_train, X_test, y_test)
-    train_xgb(X_train, y_train, X_test, y_test)
     train_lr(X_train, y_train, X_test, y_test)
+    # train_svm(X_train, y_train, X_test, y_test)
+    # train_knn(X_train, y_train, X_test, y_test)
+    # train_nb(X_train, y_train, X_test, y_test)
+    # train_rf(X_train, y_train, X_test, y_test)
+    # train_xgb(X_train, y_train, X_test, y_test)
+    # train_adab(X_train, y_train, X_test, y_test)
 
 def train_lr(X_train, y_train, X_test, y_test):
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train)
     X_test = scaler.fit_transform(X_test)
 
-    model = LogisticRegression(C=2, solver='newton-cg', n_jobs=-1, tol=0.01)
+    model = LogisticRegression(C=0.1)
     print("\nLogistic Regression: Training...")
     model.fit(X_train, y_train)
     print("\nLogistic Regression: Training score: %f"%(model.score(X_train, y_train)))
     print("\nLogistic Regression: Test score: %f"%(model.score(X_test, y_test)))
+    print("\n----------------------------------------------\n")
+
+def train_svm(X_train, y_train, X_test, y_test):
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.fit_transform(X_test)
+
+    model = model = svm.SVC(kernel='linear')
+    print("\nSupport Vector Machine: Training...")
+    model.fit(X_train, y_train)
+    print("\nSupport Vector Machine: Training score: %f"%(model.score(X_train, y_train)))
+    print("\nSupport Vector Machine: Test score: %f"%(model.score(X_test, y_test)))
+    print("\n----------------------------------------------\n")
+
+def train_knn(X_train, y_train, X_test, y_test):
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.fit_transform(X_test)
+
+    model = KNeighborsClassifier()
+    print("\nK Nearest Neighbor: Training...")
+    model.fit(X_train, y_train)
+    print("\nK Nearest Neighbor: Training score: %f"%(model.score(X_train, y_train)))
+    print("\nK Nearest Neighbor: Test score: %f"%(model.score(X_test, y_test)))
+    print("\n----------------------------------------------\n")
+
+def train_nb(X_train, y_train, X_test, y_test):
+
+    model = GaussianNB()
+    print("\nGaussian Naive Bayes: Training...")
+    model.fit(X_train, y_train)
+    print("\nGaussian Naive Bayes: Training score: %f"%(model.score(X_train, y_train)))
+    print("\nGaussian Naive Bayes: Test score: %f"%(model.score(X_test, y_test)))
+    print("\n----------------------------------------------\n")
 
 def train_rf(X_train, y_train, X_test, y_test):
 
@@ -139,6 +190,7 @@ def train_rf(X_train, y_train, X_test, y_test):
     model.fit(X_train, y_train)
     print("\nRandom Forest: Training score: %f"%(model.score(X_train, y_train)))
     print("\nRandom Forest: Test score: %f"%(model.score(X_test, y_test)))
+    print("\n----------------------------------------------\n")
 
 def train_xgb(X_train, y_train, X_test, y_test):
 
@@ -147,7 +199,16 @@ def train_xgb(X_train, y_train, X_test, y_test):
     model.fit(X_train, y_train)
     print("\nXGBoost: Training score: %f"%(model.score(X_train, y_train)))
     print("\nXGBoost: Test score: %f"%(model.score(X_test, y_test)))
+    print("\n----------------------------------------------\n")
 
+def train_adab(X_train, y_train, X_test, y_test):
+    
+    model = AdaBoostClassifier(random_state=1)
+    print("\nAdaboost: Training...")
+    model.fit(X_train, y_train)
+    print("\nAdaboost: Training score: %f"%(model.score(X_train, y_train)))
+    print("\nAdaboost: Test score: %f"%(model.score(X_test, y_test)))
+    print("\n----------------------------------------------\n")
     
 if __name__ == "__main__":
     warnings.filterwarnings(action='ignore', category=DeprecationWarning)
