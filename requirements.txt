@@ -1,0 +1,9 @@
+python==3.5.2
+numpy==1.14.3
+pandas==0.23.3
+matplotlib==1.5.1
+seaborn==0.9.0
+liborsa==0.6.2
+git+https://github.com/jameslyons/python_speech_features@master#egg=python_speech_features
+sklearn==0.19.1
+xgboost==0.80
